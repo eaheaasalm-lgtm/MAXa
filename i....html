@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>🎵 صانع الموسيقى - يحية</title>
+<style>
+body { background:#0b1220; color:#e0eaff; font-family:"Segoe UI",sans-serif; text-align:center; padding:20px; }
+h1 { color:#7dd3fc; }
+.grid { display:grid; grid-template-columns:repeat(16, 1fr); gap:4px; margin:10px auto; width:90%; max-width:700px;}
+.cell { width:100%; aspect-ratio:1/1; background:#1e293b; border-radius:6px; cursor:pointer; transition:0.1s; }
+.cell.active { background:#38bdf8; box-shadow:0 0 10px #38bdf8; }
+.instrument { margin:10px auto; }
+button { background:#2563eb; color:white; border:none; padding:8px 14px; border-radius:8px; cursor:pointer; margin:4px; }
+button:hover { background:#1d4ed8; }
+</style>
+</head>
+<body>
+<h1>🎧 صانع الموسيقى الخاص بـ يحية</h1>
+<p>اضغط على المربعات لتشغيل/إيقاف النوتات، ثم اضغط تشغيل 🎶</p>
+
+<div id="instruments"></div>
+<br>
+<button id="playBtn">تشغيل</button>
+<button id="stopBtn">إيقاف</button>
+
+<script>
+const instruments = [
+  { name: "Kick", color: "#f87171", sound: playKick },
+  { name: "Snare", color: "#fb923c", sound: playSnare },
+  { name: "Hat", color: "#fde047", sound: playHat },
+  { name: "Synth", color: "#38bdf8", sound: playSynth },
+];
+
+let ctx, master;
+let isPlaying=false, tempo=110, step=0, timer;
+const steps=16;
+const pattern={};
+
+// بناء الشبكة
+const container=document.getElementById("instruments");
+instruments.forEach(inst=>{
+  const div=document.createElement("div");
+  div.className="instrument";
+  div.innerHTML=`<h3>${inst.name}</h3><div class="grid" id="grid-${inst.name}"></div>`;
+  container.appendChild(div);
+  pattern[inst.name]=Array(steps).fill(0);
+  const grid=div.querySelector(".grid");
+  for(let i=0;i<steps;i++){
+    const cell=document.createElement("div");
+    cell.className="cell";
+    cell.onclick=()=>{
+      cell.classList.toggle("active");
+      pattern[inst.name][i]=cell.classList.contains("active")?1:0;
+    };
+    grid.appendChild(cell);
+  }
+});
+
+// Web Audio setup
+function init(){
+  if(ctx) return;
+  ctx=new (window.AudioContext||window.webkitAudioContext)();
+  master=ctx.createGain(); master.gain.value=0.8; master.connect(ctx.destination);
+}
+
+function playKick(t){
+  const o=ctx.createOscillator(); const g=ctx.createGain();
+  o.type="sine"; o.frequency.setValueAtTime(150,t); o.frequency.exponentialRampToValueAtTime(40,t+0.4);
+  g.gain.setValueAtTime(1,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.4);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t+0.5);
+}
+function playSnare(t){
+  const b=ctx.createBuffer(1,ctx.sampleRate*0.2,ctx.sampleRate);
+  const d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(ctx.sampleRate*0.03));
+  const s=ctx.createBufferSource(); s.buffer=b; const g=ctx.createGain();
+  g.gain.setValueAtTime(1,t); g.gain.exponentialRampToValueAtTime(0.01,t+0.2);
+  s.connect(g); g.connect(master); s.start(t);
+}
+function playHat(t){
+  const o=ctx.createOscillator(); const g=ctx.createGain();
+  o.type="square"; o.frequency.value=8000; g.gain.setValueAtTime(0.2,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.1);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t+0.1);
+}
+function playSynth(t){
+  const notes=[261,293,329,349,392,440,523]; // سلم موسيقي
+  const f=notes[Math.floor(Math.random()*notes.length)];
+  const o=ctx.createOscillator(); const g=ctx.createGain();
+  o.type="sawtooth"; o.frequency.value=f;
+  g.gain.setValueAtTime(0.15,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t+0.4);
+}
+
+function tick(){
+  const secPerStep=(60/tempo)/4;
+  while(nextTime<ctx.currentTime+0.1){
+    instruments.forEach(inst=>{
+      if(pattern[inst.name][step]) inst.sound(nextTime);
+    });
+    step=(step+1)%steps;
+    nextTime+=secPerStep;
+  }
+  if(isPlaying) timer=setTimeout(tick,25);
+}
+
+document.getElementById("playBtn").onclick=()=>{
+  init(); ctx.resume();
+  if(isPlaying) return;
+  isPlaying=true; step=0; nextTime=ctx.currentTime+0.05;
+  tick();
+};
+document.getElementById("stopBtn").onclick=()=>{
+  isPlaying=false; clearTimeout(timer);
+};
+</script>
+</body>
+</html>
